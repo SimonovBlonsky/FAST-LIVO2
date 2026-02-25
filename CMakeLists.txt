@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 2.8.3...4.0.1)
 project(fast_livo)
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -93,11 +93,21 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
 )
 
+set(OpenCV_DIR /usr/lib/x86_64-linux-gnu/cmake/opencv4/)
+find_package(OpenCV 4.2 EXACT REQUIRED)
+message("OpenCV_DIR: ${OpenCV_DIR}")
+message("OpenCV_INCLUDE_DIRS: ${OpenCV_INCLUDE_DIRS}")
+message("OpenCV version: ${OpenCV_VERSION}")
+
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
-find_package(OpenCV REQUIRED)
+# find_package(OpenCV REQUIRED)
 find_package(Sophus REQUIRED)
-find_package(Boost REQUIRED COMPONENTS thread)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
+set(Boost_USE_STATIC_LIBS OFF)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
+# find_package(Boost REQUIRED COMPONENTS thread)
 
 set(Sophus_LIBRARIES libSophus.so)
 

@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/usr/include/eigen3",
+                "/usr/include/pcl-1.10",
+                "/usr/include/opencv4",
+                "/opt/ros/noetic/include",
+                "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/",
+                "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/vikit_common/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
