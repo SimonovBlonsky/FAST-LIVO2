@@ -1229,7 +1229,7 @@ void LIVMapper::publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, 
   }
 
   /*** Publish Frame ***/
-  // Always publish XYZI cloud for downstream modules (e.g., fast_lio_sam_sc_qn).
+  // Always publish XYZI cloud for downstream modules (e.g., aster_slam).
   sensor_msgs::PointCloud2 laserCloudmsg;
   pcl::toROSMsg(*pcl_w_wait_pub, laserCloudmsg);
   laserCloudmsg.header.stamp = ros::Time::now();
