@@ -9,7 +9,8 @@
                 "/usr/include/opencv4",
                 "/opt/ros/noetic/include",
                 "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/",
-                "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/vikit_common/include"
+                "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/vikit_common/include",
+                "/home/chenguyuan/code/fastlivo2_ws/src/rpg_vikit/vikit_ros/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",

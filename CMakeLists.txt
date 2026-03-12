@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3...4.0.1)
+cmake_minimum_required(VERSION 3.10)
 project(fast_livo)
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -106,7 +106,8 @@ find_package(Sophus REQUIRED)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 set(Boost_USE_STATIC_LIBS OFF)
-find_package(Boost COMPONENTS system filesystem REQUIRED)
+find_package(Boost 1.71 EXACT REQUIRED COMPONENTS system filesystem iostreams)
+# find_package(Boost COMPONENTS system filesystem REQUIRED)
 # find_package(Boost REQUIRED COMPONENTS thread)
 
 set(Sophus_LIBRARIES libSophus.so)

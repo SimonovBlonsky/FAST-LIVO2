@@ -443,25 +443,29 @@ void ImuProcess::UndistortPcl(LidarMeasureGroup &lidar_meas, StatesGroup &state_
   state_inout.pos_end = pos_imu;
   state_inout.inv_expo_time = tau;
 
-  /*** calculated the pos and attitude prediction at the frame-end ***/
-  // if (imu_end_time>prop_beg_time)
-  // {
-  //   double note = prop_end_time > imu_end_time ? 1.0 : -1.0;
-  //   dt = note * (prop_end_time - imu_end_time);
-  //   state_inout.vel_end = vel_imu + note * acc_imu * dt;
-  //   state_inout.rot_end = R_imu * Exp(V3D(note * angvel_avr), dt);
-  //   state_inout.pos_end = pos_imu + note * vel_imu * dt + note * 0.5 *
-  //   acc_imu * dt * dt;
-  // }
-  // else
-  // {
-  //   double note = prop_end_time > prop_beg_time ? 1.0 : -1.0;
-  //   dt = note * (prop_end_time - prop_beg_time);
-  //   state_inout.vel_end = vel_imu + note * acc_imu * dt;
-  //   state_inout.rot_end = R_imu * Exp(V3D(note * angvel_avr), dt);
-  //   state_inout.pos_end = pos_imu + note * vel_imu * dt + note * 0.5 *
-  //   acc_imu * dt * dt;
-  // }
+  // FAST_LIO needs exact frame-end propagation for LiDAR updates. In LIVO's
+  // VIO sub-update there may be no fresh IMU sample, so extrapolating to the
+  // image time with stale acceleration/gyro biases the state forward/downward.
+  if (lidar_meas.lio_vio_flg == LIO)
+  {
+    /*** calculated the pos and attitude prediction at the frame-end ***/
+    if (imu_end_time > prop_beg_time)
+    {
+      double note = prop_end_time > imu_end_time ? 1.0 : -1.0;
+      dt = note * (prop_end_time - imu_end_time);
+      state_inout.vel_end = vel_imu + note * acc_imu * dt;
+      state_inout.rot_end = R_imu * Exp(V3D(note * angvel_avr), dt);
+      state_inout.pos_end = pos_imu + note * vel_imu * dt + note * 0.5 * acc_imu * dt * dt;
+    }
+    else
+    {
+      double note = prop_end_time > prop_beg_time ? 1.0 : -1.0;
+      dt = note * (prop_end_time - prop_beg_time);
+      state_inout.vel_end = vel_imu + note * acc_imu * dt;
+      state_inout.rot_end = R_imu * Exp(V3D(note * angvel_avr), dt);
+      state_inout.pos_end = pos_imu + note * vel_imu * dt + note * 0.5 * acc_imu * dt * dt;
+    }
+  }
 
   // cout<<"[ Propagation ] output state: "<<state_inout.vel_end.transpose() <<
   // state_inout.pos_end.transpose()<<endl;

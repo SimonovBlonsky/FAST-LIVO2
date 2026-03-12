@@ -50,6 +50,7 @@ public:
   void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in);
   void img_cbk(const sensor_msgs::ImageConstPtr &msg_in);
   void publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager);
+  void publish_img_rgb(const image_transport::Publisher &pubImage, const cv::Mat &img_rgb, const double stamp);
   void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, VIOManagerPtr vio_manager);
   void publish_visual_sub_map(const ros::Publisher &pubSubVisualMap);
   void publish_effect_world(const ros::Publisher &pubLaserCloudEffect, const std::vector<PointToPlane> &ptpl_list);
@@ -165,6 +166,7 @@ public:
   ros::Subscriber sub_imu;
   ros::Subscriber sub_img;
   ros::Publisher pubLaserCloudFullRes;
+  ros::Publisher pubLaserCloudFullResRGB;
   ros::Publisher pubNormal;
   ros::Publisher pubSubVisualMap;
   ros::Publisher pubLaserCloudEffect;

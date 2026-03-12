@@ -90,6 +90,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
   nh.param<bool>("preprocess/hilti_en", hilti_en, false);
   nh.param<int>("preprocess/lidar_type", p_pre->lidar_type, AVIA);
   nh.param<int>("preprocess/scan_line", p_pre->N_SCANS, 6);
+  nh.param<int>("preprocess/scan_rate", p_pre->SCAN_RATE, 10);
   nh.param<int>("preprocess/point_filter_num", p_pre->point_filter_num, 3);
   nh.param<bool>("preprocess/feature_extract_enabled", p_pre->feature_enabled, false);
 
@@ -197,21 +198,31 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
   sub_imu = nh.subscribe(imu_topic, 200000, &LIVMapper::imu_cbk, this);
   sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
   
+  // 发布处理后的点云供RViz显示
   pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
+  // 发布彩色点云（仅用于可视化，不作为回环输入）
+  pubLaserCloudFullResRGB = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered_rgb", 100);
+  // 发布法线可视化信息
   pubNormal = nh.advertise<visualization_msgs::MarkerArray>("visualization_marker", 100);
+  // 发布VIO子地图点云
   pubSubVisualMap = nh.advertise<sensor_msgs::PointCloud2>("/cloud_visual_sub_map_before", 100);
   pubLaserCloudEffect = nh.advertise<sensor_msgs::PointCloud2>("/cloud_effected", 100);
   pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>("/Laser_map", 100);
+  // 输出里程计与路径
   pubOdomAftMapped = nh.advertise<nav_msgs::Odometry>("/aft_mapped_to_init", 10);
   pubPath = nh.advertise<nav_msgs::Path>("/path", 10);
+  // 平面、体素地图以及动态物体信息
   plane_pub = nh.advertise<visualization_msgs::Marker>("/planner_normal", 1);
   voxel_pub = nh.advertise<visualization_msgs::MarkerArray>("/voxels", 1);
   pubLaserCloudDyn = nh.advertise<sensor_msgs::PointCloud2>("/dyn_obj", 100);
   pubLaserCloudDynRmed = nh.advertise<sensor_msgs::PointCloud2>("/dyn_obj_removed", 100);
   pubLaserCloudDynDbg = nh.advertise<sensor_msgs::PointCloud2>("/dyn_obj_dbg_hist", 100);
+  // MAVROS视觉位置输出
   mavros_pose_publisher = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
+  // 发布图像和IMU预传播位姿
   pubImage = it.advertise("/rgb_img", 1);
   pubImuPropOdom = nh.advertise<nav_msgs::Odometry>("/LIVO2/imu_propagate", 10000);
+  // 定时器用于IMU预传播
   imu_prop_timer = nh.createTimer(ros::Duration(0.004), &LIVMapper::imu_prop_callback, this);
   voxelmap_manager->voxel_map_pub_= nh.advertise<visualization_msgs::MarkerArray>("/planes", 10000);
 }
@@ -443,6 +454,10 @@ void LIVMapper::handleLIO()
   *pcl_w_wait_pub = *laserCloudWorld;
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
+  if (slam_mode_ == ONLY_LIO && !LidarMeasures.measures.empty() && !LidarMeasures.measures.back().img.empty())
+  {
+    publish_img_rgb(pubImage, LidarMeasures.measures.back().img, LidarMeasures.measures.back().img_time);
+  }
   if (pub_effect_point_en) publish_effect_world(pubLaserCloudEffect, voxelmap_manager->ptpl_list_);
   if (voxelmap_manager->config_setting_.is_pub_plane_map_) voxelmap_manager->pubVoxelMap();
   publish_path(pubPath);
@@ -828,7 +843,7 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
 
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
-  if (!img_en) return;
+  if (!img_en && slam_mode_ != ONLY_LIO) return;
   sensor_msgs::Image::Ptr msg(new sensor_msgs::Image(*msg_in));
   // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
   // {
@@ -883,8 +898,9 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 {
+  const bool need_img_sync = img_en || slam_mode_ == ONLY_LIO;
   if (lid_raw_data_buffer.empty() && lidar_en) return false;
-  if (img_buffer.empty() && img_en) return false;
+  if (img_buffer.empty() && need_img_sync) return false;
   if (imu_buffer.empty() && imu_en) return false;
 
   switch (slam_mode_)
@@ -912,11 +928,44 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       return false;
     }
 
+    if (need_img_sync && last_timestamp_img < meas.lidar_frame_end_time)
+    {
+      return false;
+    }
+
     struct MeasureGroup m; // standard method to keep imu message.
 
     m.imu.clear();
     m.lio_time = meas.lidar_frame_end_time;
     mtx_buffer.lock();
+    /*
+    ONLY_LIO 的同步逻辑不是 LIVO 那种“把激光裁到图像时刻”
+  - 而是“给每个 LIO 帧配一张最近的历史图像”
+  - 这对你做视觉回环通常是够用的，但它不是 LIVO 内部那种严格同一更新时间
+    */
+    if (need_img_sync)
+    {
+      while (!img_time_buffer.empty() && img_time_buffer.front() <= meas.last_lio_update_time)
+      {
+        img_buffer.pop_front();
+        img_time_buffer.pop_front();
+      }
+      while (img_time_buffer.size() >= 2 && img_time_buffer[1] <= meas.lidar_frame_end_time)
+      {
+        img_buffer.pop_front();
+        img_time_buffer.pop_front();
+      }
+      if (img_time_buffer.empty() || img_time_buffer.front() > meas.lidar_frame_end_time)
+      {
+        mtx_buffer.unlock();
+        sig_buffer.notify_all();
+        return false;
+      }
+      m.img = img_buffer.front();
+      m.img_time = img_time_buffer.front();
+      img_buffer.pop_front();
+      img_time_buffer.pop_front();
+    }
     while (!imu_buffer.empty())
     {
       if (imu_buffer.front()->header.stamp.toSec() > meas.lidar_frame_end_time) break;
@@ -1120,9 +1169,14 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 
 void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager)
 {
-  cv::Mat img_rgb = vio_manager->img_cp;
+  publish_img_rgb(pubImage, vio_manager->img_cp, ros::Time::now().toSec());
+}
+
+void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, const cv::Mat &img_rgb, const double stamp)
+{
+  if (img_rgb.empty()) return;
   cv_bridge::CvImage out_msg;
-  out_msg.header.stamp = ros::Time::now();
+  out_msg.header.stamp = ros::Time().fromSec(stamp);
   // out_msg.header.frame_id = "camera_init";
   out_msg.encoding = sensor_msgs::image_encodings::BGR8;
   out_msg.image = img_rgb;
@@ -1175,18 +1229,22 @@ void LIVMapper::publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, 
   }
 
   /*** Publish Frame ***/
+  // Always publish XYZI cloud for downstream modules (e.g., fast_lio_sam_sc_qn).
   sensor_msgs::PointCloud2 laserCloudmsg;
-  if (slam_mode_ == LIVO && LidarMeasures.lio_vio_flg == VIO)
-  {
-    pcl::toROSMsg(*laserCloudWorldRGB, laserCloudmsg);
-  }
-  if (slam_mode_ == ONLY_LIO || slam_mode_ == ONLY_LO)
-  { 
-    pcl::toROSMsg(*pcl_w_wait_pub, laserCloudmsg); 
-  }
-  laserCloudmsg.header.stamp = ros::Time::now(); //.fromSec(last_timestamp_lidar);
+  pcl::toROSMsg(*pcl_w_wait_pub, laserCloudmsg);
+  laserCloudmsg.header.stamp = ros::Time::now();
   laserCloudmsg.header.frame_id = "camera_init";
   pubLaserCloudFullRes.publish(laserCloudmsg);
+
+  // Publish colorized cloud on a dedicated topic for visualization only.
+  if (slam_mode_ == LIVO && LidarMeasures.lio_vio_flg == VIO && !laserCloudWorldRGB->empty())
+  {
+    sensor_msgs::PointCloud2 laserCloudmsgRGB;
+    pcl::toROSMsg(*laserCloudWorldRGB, laserCloudmsgRGB);
+    laserCloudmsgRGB.header.stamp = laserCloudmsg.header.stamp;
+    laserCloudmsgRGB.header.frame_id = "camera_init";
+    pubLaserCloudFullResRGB.publish(laserCloudmsgRGB);
+  }
 
   /**************** save map ****************/
   /* 1. make sure you have enough memories
