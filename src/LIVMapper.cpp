@@ -54,6 +54,7 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
   nh.param<bool>("common/ros_driver_bug_fix", ros_driver_fix_en, false);
   nh.param<int>("common/img_en", img_en, 1);
   nh.param<int>("common/lidar_en", lidar_en, 1);
+  nh.param<bool>("common/enable_img_sync_in_lio", enable_img_sync_in_lio, false);
   nh.param<string>("common/img_topic", img_topic, "/left_camera/image");
 
   nh.param<bool>("vio/normal_en", normal_en, true);
@@ -196,7 +197,10 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
             nh.subscribe(lid_topic, 200000, &LIVMapper::livox_pcl_cbk, this): 
             nh.subscribe(lid_topic, 200000, &LIVMapper::standard_pcl_cbk, this);
   sub_imu = nh.subscribe(imu_topic, 200000, &LIVMapper::imu_cbk, this);
-  sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
+  if (img_en || enable_img_sync_in_lio)
+  {
+    sub_img = nh.subscribe(img_topic, 200000, &LIVMapper::img_cbk, this);
+  }
   
   // 发布处理后的点云供RViz显示
   pubLaserCloudFullRes = nh.advertise<sensor_msgs::PointCloud2>("/cloud_registered", 100);
@@ -336,7 +340,7 @@ void LIVMapper::handleVIO()
   // }
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
-  publish_img_rgb(pubImage, vio_manager);
+  publish_img_rgb(pubImage, vio_manager->img_cp, LidarMeasures.measures.back().vio_time);
 
   euler_cur = RotMtoEuler(_state.rot_end);
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
@@ -460,6 +464,10 @@ void LIVMapper::handleLIO()
   *pcl_w_wait_pub = *laserCloudWorld;
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
+  if (slam_mode_ == ONLY_LIO && enable_img_sync_in_lio && !LidarMeasures.measures.empty() && !LidarMeasures.measures.back().img.empty())
+  {
+    publish_img_rgb(pubImage, LidarMeasures.measures.back().img, LidarMeasures.measures.back().lio_time);
+  }
   if (pub_effect_point_en) publish_effect_world(pubLaserCloudEffect, voxelmap_manager->ptpl_list_);
   if (voxelmap_manager->config_setting_.is_pub_plane_map_) voxelmap_manager->pubVoxelMap();
   publish_path(pubPath);
@@ -845,7 +853,8 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
 
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
-  if (!img_en) return;
+  const bool img_input_enabled = img_en || (enable_img_sync_in_lio && slam_mode_ == ONLY_LIO);
+  if (!img_input_enabled) return;
   sensor_msgs::Image::Ptr msg(new sensor_msgs::Image(*msg_in));
   // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
   // {
@@ -863,7 +872,7 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
   // double msg_header_time =  msg->header.stamp.toSec();
   double msg_header_time = msg->header.stamp.toSec() + img_time_offset;
   if (abs(msg_header_time - last_timestamp_img) < 0.001) return;
-  ROS_INFO("Get image, its header time: %.6f", msg_header_time);
+  // ROS_INFO("Get image, its header time: %.6f", msg_header_time);
   if (last_timestamp_lidar < 0) return;
 
   if (msg_header_time < last_timestamp_img)
@@ -908,6 +917,7 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
   {
   case ONLY_LIO:
   {
+    const bool sync_img_in_lio = enable_img_sync_in_lio && !img_en;
     if (meas.last_lio_update_time < 0.0) meas.last_lio_update_time = lid_header_time_buffer.front();
     if (!lidar_pushed)
     {
@@ -928,7 +938,6 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       // ROS_ERROR("out sync");
       return false;
     }
-
     struct MeasureGroup m; // standard method to keep imu message.
 
     m.imu.clear();
@@ -939,6 +948,28 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       if (imu_buffer.front()->header.stamp.toSec() > meas.lidar_frame_end_time) break;
       m.imu.push_back(imu_buffer.front());
       imu_buffer.pop_front();
+    }
+    if (sync_img_in_lio)
+    {
+      while (!img_buffer.empty() && img_time_buffer.front() <= meas.last_lio_update_time)
+      {
+        img_buffer.pop_front();
+        img_time_buffer.pop_front();
+      }
+
+      while (last_timestamp_img >= meas.lidar_frame_end_time && img_buffer.size() >= 2 && img_time_buffer[1] <= meas.lidar_frame_end_time)
+      {
+        img_buffer.pop_front();
+        img_time_buffer.pop_front();
+      }
+
+      if (last_timestamp_img >= meas.lidar_frame_end_time && !img_buffer.empty() && img_time_buffer.front() <= meas.lidar_frame_end_time)
+      {
+        m.img = img_buffer.front().clone();
+        m.img_time = img_time_buffer.front();
+        img_buffer.pop_front();
+        img_time_buffer.pop_front();
+      }
     }
     lid_raw_data_buffer.pop_front();
     lid_header_time_buffer.pop_front();
@@ -1070,7 +1101,6 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       struct MeasureGroup m;
       m.vio_time = img_capture_time;
       m.lio_time = meas.last_lio_update_time;
-      m.img = img_buffer.front();
       mtx_buffer.lock();
       // while ((!imu_buffer.empty() && (imu_time < img_capture_time)))
       // {
@@ -1081,6 +1111,8 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       //   printf("[ Data Cut ] imu time: %lf \n",
       //   imu_buffer.front()->header.stamp.toSec());
       // }
+      m.img_time = img_time_buffer.front();
+      m.img = img_buffer.front();
       img_buffer.pop_front();
       img_time_buffer.pop_front();
       mtx_buffer.unlock();
@@ -1135,11 +1167,11 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
   ROS_ERROR("out sync");
 }
 
-void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager)
+void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, const cv::Mat &img_rgb, double time_stamp)
 {
-  cv::Mat img_rgb = vio_manager->img_cp;
+  if (img_rgb.empty()) return;
   cv_bridge::CvImage out_msg;
-  out_msg.header.stamp = ros::Time::now();
+  out_msg.header.stamp = time_stamp > 0.0 ? ros::Time().fromSec(time_stamp) : ros::Time::now();
   // out_msg.header.frame_id = "camera_init";
   out_msg.encoding = sensor_msgs::image_encodings::BGR8;
   out_msg.image = img_rgb;

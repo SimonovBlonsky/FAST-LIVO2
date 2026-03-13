@@ -3,6 +3,7 @@ common:
   lid_topic: "/kitti/velo/pointcloud"
   imu_topic: "/kitti/oxts/imu"
   img_en: 0
+  enable_img_sync_in_lio: false
   lidar_en: 1
   ros_driver_bug_fix: false
 

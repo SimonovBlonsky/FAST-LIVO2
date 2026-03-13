@@ -3,6 +3,7 @@ common:
   lid_topic: "/hesai/pandar"
   imu_topic: "raw_imu"
   img_en: 1
+  enable_img_sync_in_lio: false
   lidar_en: 1
   ros_driver_bug_fix: false
 
