@@ -64,14 +64,12 @@ struct MeasureGroup
 {
   double vio_time;
   double lio_time;
-  double img_time;
   deque<sensor_msgs::Imu::ConstPtr> imu;
   cv::Mat img;
   MeasureGroup()
   {
     vio_time = 0.0;
     lio_time = 0.0;
-    img_time = 0.0;
   };
 };
 

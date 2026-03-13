@@ -433,7 +433,7 @@ void LIVMapper::handleLIO()
     voxelmap_manager->pv_list_[i].var = var;
   }
   voxelmap_manager->UpdateVoxelMap(voxelmap_manager->pv_list_);
-  std::cout << "[ LIO ] Update Voxel Map" << std::endl;
+  // std::cout << "[ LIO ] Update Voxel Map" << std::endl;
   _pv_list = voxelmap_manager->pv_list_;
   
   double t4 = omp_get_wtime();
@@ -441,6 +441,12 @@ void LIVMapper::handleLIO()
   if(voxelmap_manager->config_setting_.map_sliding_en)
   {
     voxelmap_manager->mapSliding();
+  }
+  // For voxel map size and memory debug
+  if(frame_num % 100 == 0)
+  {
+    size_t map_size = voxelmap_manager->voxel_map_.size();
+    if (map_size >= 300000) std::cout << "\033[38;5;208m[ LIO ] Voxel Map Size: " << map_size << " , too large!\033[0m" << std::endl;
   }
   
   PointCloudXYZI::Ptr laserCloudFullRes(dense_map_en ? feats_undistort : feats_down_body);
@@ -454,10 +460,6 @@ void LIVMapper::handleLIO()
   *pcl_w_wait_pub = *laserCloudWorld;
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
-  if (slam_mode_ == ONLY_LIO && !LidarMeasures.measures.empty() && !LidarMeasures.measures.back().img.empty())
-  {
-    publish_img_rgb(pubImage, LidarMeasures.measures.back().img, LidarMeasures.measures.back().img_time);
-  }
   if (pub_effect_point_en) publish_effect_world(pubLaserCloudEffect, voxelmap_manager->ptpl_list_);
   if (voxelmap_manager->config_setting_.is_pub_plane_map_) voxelmap_manager->pubVoxelMap();
   publish_path(pubPath);
@@ -477,18 +479,18 @@ void LIVMapper::handleLIO()
   // printf("\033[1;36m[ LIO mapping time ]: current scan: icp: %0.6f secs, map incre: %0.6f secs, total: %0.6f secs.\033[0m\n"
   //         "\033[1;36m[ LIO mapping time ]: average: icp: %0.6f secs, map incre: %0.6f secs, total: %0.6f secs.\033[0m\n",
   //         t2 - t1, t4 - t3, t4 - t0, aver_time_icp, aver_time_map_inre, aver_time_consu);
-  printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
-  printf("\033[1;34m|                         LIO Mapping Time                    |\033[0m\n");
-  printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
-  printf("\033[1;34m| %-29s | %-27s |\033[0m\n", "Algorithm Stage", "Time (secs)");
-  printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
-  printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "DownSample", t_down - t0);
-  printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "ICP", t2 - t1);
-  printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "updateVoxelMap", t4 - t3);
-  printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
-  printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Current Total Time", t4 - t0);
-  printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Average Total Time", aver_time_consu);
-  printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+  // printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+  // printf("\033[1;34m|                         LIO Mapping Time                    |\033[0m\n");
+  // printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+  // printf("\033[1;34m| %-29s | %-27s |\033[0m\n", "Algorithm Stage", "Time (secs)");
+  // printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+  // printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "DownSample", t_down - t0);
+  // printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "ICP", t2 - t1);
+  // printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "updateVoxelMap", t4 - t3);
+  // printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
+  // printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Current Total Time", t4 - t0);
+  // printf("\033[1;36m| %-29s | %-27f |\033[0m\n", "Average Total Time", aver_time_consu);
+  // printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
 
   euler_cur = RotMtoEuler(_state.rot_end);
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
@@ -843,7 +845,7 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
 
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
-  if (!img_en && slam_mode_ != ONLY_LIO) return;
+  if (!img_en) return;
   sensor_msgs::Image::Ptr msg(new sensor_msgs::Image(*msg_in));
   // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
   // {
@@ -898,9 +900,8 @@ void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 
 bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 {
-  const bool need_img_sync = img_en || slam_mode_ == ONLY_LIO;
   if (lid_raw_data_buffer.empty() && lidar_en) return false;
-  if (img_buffer.empty() && need_img_sync) return false;
+  if (img_buffer.empty() && img_en) return false;
   if (imu_buffer.empty() && imu_en) return false;
 
   switch (slam_mode_)
@@ -928,44 +929,11 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
       return false;
     }
 
-    if (need_img_sync && last_timestamp_img < meas.lidar_frame_end_time)
-    {
-      return false;
-    }
-
     struct MeasureGroup m; // standard method to keep imu message.
 
     m.imu.clear();
     m.lio_time = meas.lidar_frame_end_time;
     mtx_buffer.lock();
-    /*
-    ONLY_LIO 的同步逻辑不是 LIVO 那种“把激光裁到图像时刻”
-  - 而是“给每个 LIO 帧配一张最近的历史图像”
-  - 这对你做视觉回环通常是够用的，但它不是 LIVO 内部那种严格同一更新时间
-    */
-    if (need_img_sync)
-    {
-      while (!img_time_buffer.empty() && img_time_buffer.front() <= meas.last_lio_update_time)
-      {
-        img_buffer.pop_front();
-        img_time_buffer.pop_front();
-      }
-      while (img_time_buffer.size() >= 2 && img_time_buffer[1] <= meas.lidar_frame_end_time)
-      {
-        img_buffer.pop_front();
-        img_time_buffer.pop_front();
-      }
-      if (img_time_buffer.empty() || img_time_buffer.front() > meas.lidar_frame_end_time)
-      {
-        mtx_buffer.unlock();
-        sig_buffer.notify_all();
-        return false;
-      }
-      m.img = img_buffer.front();
-      m.img_time = img_time_buffer.front();
-      img_buffer.pop_front();
-      img_time_buffer.pop_front();
-    }
     while (!imu_buffer.empty())
     {
       if (imu_buffer.front()->header.stamp.toSec() > meas.lidar_frame_end_time) break;
@@ -1169,14 +1137,9 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 
 void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, VIOManagerPtr vio_manager)
 {
-  publish_img_rgb(pubImage, vio_manager->img_cp, ros::Time::now().toSec());
-}
-
-void LIVMapper::publish_img_rgb(const image_transport::Publisher &pubImage, const cv::Mat &img_rgb, const double stamp)
-{
-  if (img_rgb.empty()) return;
+  cv::Mat img_rgb = vio_manager->img_cp;
   cv_bridge::CvImage out_msg;
-  out_msg.header.stamp = ros::Time().fromSec(stamp);
+  out_msg.header.stamp = ros::Time::now();
   // out_msg.header.frame_id = "camera_init";
   out_msg.encoding = sensor_msgs::image_encodings::BGR8;
   out_msg.image = img_rgb;

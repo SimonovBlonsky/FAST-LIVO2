@@ -12,6 +12,8 @@ which is included as part of this source code package.
 
 #include "preprocess.h"
 
+#include <cstring>
+
 #define RETURN0 0x00
 #define RETURN0AND1 0x10
 
@@ -354,9 +356,160 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pl_corn.clear();
   pl_full.clear();
 
+  const auto find_field = [&](const string &field_name) -> const sensor_msgs::PointField * {
+    for (const auto &field : msg->fields)
+    {
+      if (field.name == field_name) return &field;
+    }
+    return nullptr;
+  };
+
+  const auto read_field_as_float = [](const uint8_t *point_ptr, const sensor_msgs::PointField *field, float default_value) -> float {
+    if (field == nullptr) return default_value;
+
+    const uint8_t *field_ptr = point_ptr + field->offset;
+    switch (field->datatype)
+    {
+    case sensor_msgs::PointField::INT8:
+    {
+      int8_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::UINT8:
+    {
+      uint8_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::INT16:
+    {
+      int16_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::UINT16:
+    {
+      uint16_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::INT32:
+    {
+      int32_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::UINT32:
+    {
+      uint32_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    case sensor_msgs::PointField::FLOAT32:
+    {
+      float value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return value;
+    }
+    case sensor_msgs::PointField::FLOAT64:
+    {
+      double value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<float>(value);
+    }
+    default:
+      return default_value;
+    }
+  };
+
+  const auto read_field_as_uint16 = [](const uint8_t *point_ptr, const sensor_msgs::PointField *field, uint16_t default_value) -> uint16_t {
+    if (field == nullptr) return default_value;
+
+    const uint8_t *field_ptr = point_ptr + field->offset;
+    switch (field->datatype)
+    {
+    case sensor_msgs::PointField::INT8:
+    {
+      int8_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::UINT8:
+    {
+      uint8_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::INT16:
+    {
+      int16_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::UINT16:
+    {
+      uint16_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return value;
+    }
+    case sensor_msgs::PointField::INT32:
+    {
+      int32_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::UINT32:
+    {
+      uint32_t value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::FLOAT32:
+    {
+      float value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    case sensor_msgs::PointField::FLOAT64:
+    {
+      double value;
+      std::memcpy(&value, field_ptr, sizeof(value));
+      return static_cast<uint16_t>(value);
+    }
+    default:
+      return default_value;
+    }
+  };
+
+  const sensor_msgs::PointField *x_field = find_field("x");
+  const sensor_msgs::PointField *y_field = find_field("y");
+  const sensor_msgs::PointField *z_field = find_field("z");
+  const sensor_msgs::PointField *intensity_field = find_field("intensity");
+  const sensor_msgs::PointField *time_field = find_field("time");
+  const sensor_msgs::PointField *ring_field = find_field("ring");
+
+  if (x_field == nullptr || y_field == nullptr || z_field == nullptr) return;
+
   pcl::PointCloud<velodyne_ros::Point> pl_orig;
-  pcl::fromROSMsg(*msg, pl_orig);
-  int plsize = pl_orig.points.size();
+  // pcl::fromROSMsg(*msg, pl_orig);
+  // int plsize = pl_orig.points.size();
+  
+  const size_t point_count = static_cast<size_t>(msg->width) * static_cast<size_t>(msg->height);
+  pl_orig.points.resize(point_count);
+  for (size_t i = 0; i < point_count; ++i)
+  {
+    const uint8_t *point_ptr = &msg->data[i * msg->point_step];
+    auto &point = pl_orig.points[i];
+    point.x = read_field_as_float(point_ptr, x_field, 0.0f);
+    point.y = read_field_as_float(point_ptr, y_field, 0.0f);
+    point.z = read_field_as_float(point_ptr, z_field, 0.0f);
+    point.intensity = read_field_as_float(point_ptr, intensity_field, 0.0f);
+    point.time = read_field_as_float(point_ptr, time_field, 0.0f);
+    point.ring = read_field_as_uint16(point_ptr, ring_field, 0);
+  }
+
+  const int plsize = static_cast<int>(point_count);
   if (plsize == 0) return;
   pl_surf.reserve(plsize);
 
