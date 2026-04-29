@@ -1,27 +1,24 @@
 common:
-  img_topic: "/lb3/Cam1/image_raw"
-  lid_topic: "/velodyne_sync_points"
-  imu_topic: "/imu/data"
+  img_topic: "/left_camera/image"
+  lid_topic: "/livox/lidar"
+  imu_topic: "/livox/imu"
   img_en: 1
   enable_img_sync_in_lio: false
   lidar_en: 1
   ros_driver_bug_fix: false
 
 extrin_calib:
-  # lidar->imu
-  extrinsic_T: [0.112, 0.176, -0.247]
-  extrinsic_R: [-0.012269, 0.999825, -0.014119,
-                -0.999921, -0.012309, -0.002724,
-                -0.002897, 0.014084, 0.999897]
-  # lidar->cam
-  Rcl: [-0.006374,  0.012056,  0.999907, 
-        0.330038, -0.943871,  0.013484,
-        0.943946,  0.330094,  0.002037]
-
-  Pcl: [ 0.273597, 0.006255, -0.045648]
+  extrinsic_T: [-0.011, -0.02329, 0.04412]
+  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+  # NTU_VIRAL
+  Rcl: [0.011685, 0.497425, 0.867429,
+        -0.999924, 0.002360, 0.012117,
+        0.0039800, -0.867504, 0.4974150]
+  Pcl: [0.061833, -0.029156,-0.1366761]
+  
 
 time_offset:
-  # lidar_time_offset: -0.1
+  lidar_time_offset: -0.1
   imu_time_offset: 0.0
   img_time_offset: 0.0
   exposure_time_init: 0.0
@@ -30,9 +27,8 @@ preprocess:
   point_filter_num: 3
   filter_size_surf: 0.1
   lidar_type: 2 # Velodyne
-  scan_line: 32
-  scan_rate: 10
-  blind: 2.0
+  scan_line: 96
+  blind: 0.5
 
 vio:
   max_iterations: 5
@@ -48,7 +44,7 @@ vio:
 
 imu:
   imu_en: true
-  imu_int_frame: 15
+  imu_int_frame: 30
   acc_cov: 0.1 # 0.2
   gyr_cov: 0.1 # 0.5
   b_acc_cov: 0.0001 # 0.1
