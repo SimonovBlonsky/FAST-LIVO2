@@ -38,7 +38,9 @@ public:
   void savePCD();
   void processImu();
   
+  bool isLidarOnlyImageSyncEnabled() const;
   bool sync_packages(LidarMeasureGroup &meas);
+  bool syncImageForLidarFrame(MeasureGroup &measure, double frame_end_time, double previous_update_time);
   void prop_imu_once(StatesGroup &imu_prop_state, const double dt, V3D acc_avr, V3D angvel_avr);
   void imu_prop_callback(const ros::TimerEvent &e);
   void transformLidar(const Eigen::Matrix3d rot, const Eigen::Vector3d t, const PointCloudXYZI::Ptr &input_cloud, PointCloudXYZI::Ptr &trans_cloud);

@@ -466,7 +466,12 @@ void LIVMapper::handleLIO()
   *pcl_w_wait_pub = *laserCloudWorld;
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
-  if (slam_mode_ == ONLY_LIO && enable_img_sync_in_lio && !LidarMeasures.measures.empty() && !LidarMeasures.measures.back().img.empty())
+  const bool publish_synced_lidar_image =
+      enable_img_sync_in_lio &&
+      (LidarMeasures.lio_vio_flg == LIO || LidarMeasures.lio_vio_flg == LO) &&
+      !LidarMeasures.measures.empty() &&
+      !LidarMeasures.measures.back().img.empty();
+  if (publish_synced_lidar_image)
   {
     publish_img_rgb(pubImage, LidarMeasures.measures.back().img, LidarMeasures.measures.back().lio_time);
     publish_img_rgb(pubImageClean, LidarMeasures.measures.back().img, LidarMeasures.measures.back().lio_time);
@@ -854,9 +859,44 @@ cv::Mat LIVMapper::getImageFromMsg(const sensor_msgs::ImageConstPtr &img_msg)
   return img;
 }
 
+bool LIVMapper::isLidarOnlyImageSyncEnabled() const
+{
+  return enable_img_sync_in_lio && (slam_mode_ == ONLY_LIO || slam_mode_ == ONLY_LO);
+}
+
+bool LIVMapper::syncImageForLidarFrame(MeasureGroup &measure, double frame_end_time, double previous_update_time)
+{
+  if (!isLidarOnlyImageSyncEnabled()) return true;
+
+  while (!img_buffer.empty() && img_time_buffer.front() <= previous_update_time)
+  {
+    img_buffer.pop_front();
+    img_time_buffer.pop_front();
+  }
+
+  if (img_buffer.empty()) return false;
+  if (last_timestamp_img < frame_end_time) return false;
+
+  while (img_buffer.size() >= 2 && img_time_buffer[1] <= frame_end_time)
+  {
+    img_buffer.pop_front();
+    img_time_buffer.pop_front();
+  }
+
+  if (img_time_buffer.front() <= frame_end_time)
+  {
+    measure.img = img_buffer.front().clone();
+    measure.img_time = img_time_buffer.front();
+    img_buffer.pop_front();
+    img_time_buffer.pop_front();
+  }
+
+  return true;
+}
+
 void LIVMapper::img_cbk(const sensor_msgs::ImageConstPtr &msg_in)
 {
-  const bool img_input_enabled = img_en || (enable_img_sync_in_lio && slam_mode_ == ONLY_LIO);
+  const bool img_input_enabled = img_en || isLidarOnlyImageSyncEnabled();
   if (!img_input_enabled) return;
   sensor_msgs::Image::Ptr msg(new sensor_msgs::Image(*msg_in));
   // if ((abs(msg->header.stamp.toSec() - last_timestamp_img) > 0.2 && last_timestamp_img > 0) || sync_jump_flag)
@@ -920,7 +960,6 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
   {
   case ONLY_LIO:
   {
-    const bool sync_img_in_lio = enable_img_sync_in_lio && !img_en;
     if (meas.last_lio_update_time < 0.0) meas.last_lio_update_time = lid_header_time_buffer.front();
     if (!lidar_pushed)
     {
@@ -946,33 +985,16 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
     m.imu.clear();
     m.lio_time = meas.lidar_frame_end_time;
     mtx_buffer.lock();
+    if (!syncImageForLidarFrame(m, meas.lidar_frame_end_time, meas.last_lio_update_time))
+    {
+      mtx_buffer.unlock();
+      return false;
+    }
     while (!imu_buffer.empty())
     {
       if (imu_buffer.front()->header.stamp.toSec() > meas.lidar_frame_end_time) break;
       m.imu.push_back(imu_buffer.front());
       imu_buffer.pop_front();
-    }
-    if (sync_img_in_lio)
-    {
-      while (!img_buffer.empty() && img_time_buffer.front() <= meas.last_lio_update_time)
-      {
-        img_buffer.pop_front();
-        img_time_buffer.pop_front();
-      }
-
-      while (last_timestamp_img >= meas.lidar_frame_end_time && img_buffer.size() >= 2 && img_time_buffer[1] <= meas.lidar_frame_end_time)
-      {
-        img_buffer.pop_front();
-        img_time_buffer.pop_front();
-      }
-
-      if (last_timestamp_img >= meas.lidar_frame_end_time && !img_buffer.empty() && img_time_buffer.front() <= meas.lidar_frame_end_time)
-      {
-        m.img = img_buffer.front().clone();
-        m.img_time = img_time_buffer.front();
-        img_buffer.pop_front();
-        img_time_buffer.pop_front();
-      }
     }
     lid_raw_data_buffer.pop_front();
     lid_header_time_buffer.pop_front();
@@ -1138,6 +1160,7 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
 
   case ONLY_LO:
   {
+    if (meas.last_lio_update_time < 0.0) meas.last_lio_update_time = lid_header_time_buffer.front();
     if (!lidar_pushed) 
     { 
       // If not in lidar scan, need to generate new meas
@@ -1150,6 +1173,11 @@ bool LIVMapper::sync_packages(LidarMeasureGroup &meas)
     struct MeasureGroup m; // standard method to keep imu message.
     m.lio_time = meas.lidar_frame_end_time;
     mtx_buffer.lock();
+    if (!syncImageForLidarFrame(m, meas.lidar_frame_end_time, meas.last_lio_update_time))
+    {
+      mtx_buffer.unlock();
+      return false;
+    }
     lid_raw_data_buffer.pop_front();
     lid_header_time_buffer.pop_front();
     mtx_buffer.unlock();
