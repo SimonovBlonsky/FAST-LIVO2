@@ -177,6 +177,7 @@ public:
   ros::Publisher pubLaserCloudDynRmed;
   ros::Publisher pubLaserCloudDynDbg;
   image_transport::Publisher pubImage;
+  image_transport::Publisher pubImageClean;
   ros::Publisher mavros_pose_publisher;
   ros::Timer imu_prop_timer;
 

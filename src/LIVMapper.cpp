@@ -225,6 +225,7 @@ void LIVMapper::initializeSubscribersAndPublishers(ros::NodeHandle &nh, image_tr
   mavros_pose_publisher = nh.advertise<geometry_msgs::PoseStamped>("/mavros/vision_pose/pose", 10);
   // 发布图像和IMU预传播位姿
   pubImage = it.advertise("/rgb_img", 1);
+  pubImageClean = it.advertise("/rgb_img_clean", 1);
   pubImuPropOdom = nh.advertise<nav_msgs::Odometry>("/LIVO2/imu_propagate", 10000);
   // 定时器用于IMU预传播
   imu_prop_timer = nh.createTimer(ros::Duration(0.004), &LIVMapper::imu_prop_callback, this);
@@ -341,6 +342,7 @@ void LIVMapper::handleVIO()
 
   publish_frame_world(pubLaserCloudFullRes, vio_manager);
   publish_img_rgb(pubImage, vio_manager->img_cp, LidarMeasures.measures.back().vio_time);
+  publish_img_rgb(pubImageClean, vio_manager->img_rgb, LidarMeasures.measures.back().vio_time);
 
   euler_cur = RotMtoEuler(_state.rot_end);
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
@@ -467,6 +469,7 @@ void LIVMapper::handleLIO()
   if (slam_mode_ == ONLY_LIO && enable_img_sync_in_lio && !LidarMeasures.measures.empty() && !LidarMeasures.measures.back().img.empty())
   {
     publish_img_rgb(pubImage, LidarMeasures.measures.back().img, LidarMeasures.measures.back().lio_time);
+    publish_img_rgb(pubImageClean, LidarMeasures.measures.back().img, LidarMeasures.measures.back().lio_time);
   }
   if (pub_effect_point_en) publish_effect_world(pubLaserCloudEffect, voxelmap_manager->ptpl_list_);
   if (voxelmap_manager->config_setting_.is_pub_plane_map_) voxelmap_manager->pubVoxelMap();
