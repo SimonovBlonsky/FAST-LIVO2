@@ -52,12 +52,12 @@ public:
   void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in);
   void img_cbk(const sensor_msgs::ImageConstPtr &msg_in);
   void publish_img_rgb(const image_transport::Publisher &pubImage, const cv::Mat &img_rgb, double time_stamp);
-  void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, VIOManagerPtr vio_manager);
+  void publish_frame_world(const ros::Publisher &pubLaserCloudFullRes, VIOManagerPtr vio_manager, double time_stamp);
   void publish_visual_sub_map(const ros::Publisher &pubSubVisualMap);
   void publish_effect_world(const ros::Publisher &pubLaserCloudEffect, const std::vector<PointToPlane> &ptpl_list);
-  void publish_odometry(const ros::Publisher &pubOdomAftMapped);
-  void publish_mavros(const ros::Publisher &mavros_pose_publisher);
-  void publish_path(const ros::Publisher pubPath);
+  void publish_odometry(const ros::Publisher &pubOdomAftMapped, double time_stamp);
+  void publish_mavros(const ros::Publisher &mavros_pose_publisher, double time_stamp);
+  void publish_path(const ros::Publisher pubPath, double time_stamp);
   void readParameters(ros::NodeHandle &nh);
   template <typename T> void set_posestamp(T &out);
   template <typename T> void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po);
