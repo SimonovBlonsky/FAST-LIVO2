@@ -1,0 +1,19 @@
+<launch>
+
+	<arg name="rviz" default="true" />
+
+	<rosparam command="load" file="$(find fast_livo)/config/GEODE/alpha.yaml" />
+	<param name="common/img_topic" value="/left_camera" />
+
+	<node pkg="image_transport" type="republish" name="geode_left_camera_republish"
+	      args="compressed in:=/left_camera raw out:=/left_camera"
+	      output="screen" respawn="true" />
+
+	<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+		<rosparam file="$(find fast_livo)/config/GEODE/camera_alpha.yaml" />
+	</node>
+	
+	<group if="$(arg rviz)">
+		<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />
+	</group>
+</launch> 	

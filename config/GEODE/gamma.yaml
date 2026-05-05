@@ -1,0 +1,104 @@
+common:
+  img_topic: "/left_camera/image"
+  lid_topic: "/livox/lidar"
+  imu_topic: "/imu/data"
+  img_en: 1
+  enable_img_sync_in_lio: false
+  lidar_en: 1
+  ros_driver_bug_fix: false
+
+extrin_calib:
+  # lidar to imu
+  extrinsic_T: [0.049258000000, -0.012500000000, 0.026946000000]
+  extrinsic_R: [0.999620000000, 0.027463000000, 0.002445000000,
+                -0.027517000000, 0.999299000000, 0.025398000000,
+                -0.001746000000, -0.025456000000, 0.999674000000]
+  # lidar to left_cam
+  Rcl: [0.030481734172, -0.999506201364, -0.007630027254,
+        0.010470226985, 0.007952445318, -0.999913562744,
+        0.999480484166, 0.030399211297, 0.010707461126]
+  Pcl: [-0.124309171269, -0.044253386271, 0.150907405882]
+
+ # lidar to right_cam
+  # Rcl: [0.033225369850, -0.998926384709, 0.032282390399,
+  #       0.006707267838, -0.032076638257, -0.999462906684,
+  #       0.999425378583, 0.033424051365, 0.005634308643]
+  # Pcl: [-0.178787290714, -0.152348573679, 0.391083044915]
+
+time_offset:
+  imu_time_offset: 0.0
+  img_time_offset: 0.0
+  exposure_time_init: 0.0
+
+preprocess:
+  point_filter_num: 1
+  filter_size_surf: 0.1
+  lidar_type: 1 # Livox Avia LiDAR
+  scan_line: 6
+  blind: 0.8
+
+vio:
+  max_iterations: 5
+  outlier_threshold: 1000 # 78 100 156 #100 200 500 700 infinite
+  img_point_cov: 100 # 100 1000 
+  patch_size: 8
+  patch_pyrimid_level: 4
+  normal_en: true
+  raycast_en: false
+  inverse_composition_en: false
+  exposure_estimate_en: true
+  inv_expo_cov: 0.1
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  # acc_cov: 5.5741025513357766e-03
+  # gyr_cov: 5.1441059541810427e-03
+  # b_acc_cov: 1.2078671772058479e-04
+  # b_gyr_cov: 1.0881627554710405e-04
+  acc_cov: 0.5 # 0.2
+  gyr_cov: 0.3 # 0.5
+  b_acc_cov: 0.0001 # 0.1
+  b_gyr_cov: 0.0001 # 0.1
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0025 # 0.005
+  voxel_size: 0.5
+  max_layer: 2
+  max_points_num: 50
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: false
+
+publish:
+  dense_map_en: true
+  pub_effect_point_en: false
+  pub_plane_en: false
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "geode_gamma"
+  pose_output_en: true
+
+pcd_save:
+  pcd_save_en: false
+  colmap_output_en: false # need to set interval = -1
+  filter_size_pcd: 0.15
+  interval: -1
+  # how many LiDAR frames saved in each pcd file;
+  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
+
+image_save:
+  img_save_en: false
+  interval: 1
