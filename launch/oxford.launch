@@ -1,0 +1,19 @@
+<launch>
+
+	<arg name="rviz" default="true" />
+
+	<rosparam command="load" file="$(find fast_livo)/config/OxfordSpires.yaml" />
+	<param name="common/img_topic" value="/alphasense_driver_ros/cam0/debayered/image" />
+
+	<node pkg="image_transport" type="republish" name="oxford_republish"
+	      args="compressed in:=/alphasense_driver_ros/cam0/debayered/image raw out:=/alphasense_driver_ros/cam0/debayered/image"
+	      output="screen" respawn="true" />
+
+	<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+		<rosparam file="$(find fast_livo)/config/camera_OxfordSpires.yaml" />
+	</node>
+	
+	<group if="$(arg rviz)">
+		<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />
+	</group>
+</launch> 	

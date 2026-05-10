@@ -1,17 +1,66 @@
 <launch>
 
 	<arg name="rviz" default="true" />
+	<arg name="platform" doc="FusionPortable V2 platform: ugv, handheld, legged, or vehicle" />
 
-	<rosparam command="load" file="$(find fast_livo)/config/FusionPortableV2/fusionportablev2_ugv.yaml" />
-	<param name="common/img_topic" value="/stereo/frame_left/image_raw" />
+	<group if="$(eval arg('platform') == 'ugv')">
+		<rosparam command="load" file="$(find fast_livo)/config/FusionPortableV2/fusionportablev2_ugv.yaml" />
+	</group>
+	<group if="$(eval arg('platform') == 'handheld')">
+		<rosparam command="load" file="$(find fast_livo)/config/FusionPortableV2/fusionportablev2_handheld.yaml" />
+	</group>
+	<group if="$(eval arg('platform') == 'legged')">
+		<rosparam command="load" file="$(find fast_livo)/config/FusionPortableV2/fusionportablev2_legged.yaml" />
+	</group>
+	<group if="$(eval arg('platform') == 'vehicle')">
+		<rosparam command="load" file="$(find fast_livo)/config/FusionPortableV2/fusionportablev2_vehicle.yaml" />
+	</group>
 
-	<node pkg="image_transport" type="republish" name="fusionportable_frame_left_republish"
-	      args="compressed in:=/stereo/frame_left/image_raw raw out:=/stereo/frame_left/image_raw"
-	      output="screen" respawn="true" />
+	<group if="$(eval arg('platform') == 'ugv')">
+		<param name="common/img_topic" value="/stereo/frame_left/image_raw" />
+		<node pkg="image_transport" type="republish" name="fusionportable_frame_left_republish"
+		      args="compressed in:=/stereo/frame_left/image_raw raw out:=/stereo/frame_left/image_raw"
+		      output="screen" respawn="true" />
+	</group>
+	<group if="$(eval arg('platform') == 'handheld')">
+		<param name="common/img_topic" value="/stereo/frame_left/image_raw" />
+		<node pkg="image_transport" type="republish" name="fusionportable_frame_left_republish"
+		      args="compressed in:=/stereo/frame_left/image_raw raw out:=/stereo/frame_left/image_raw"
+		      output="screen" respawn="true" />
+	</group>
+	<group if="$(eval arg('platform') == 'legged')">
+		<param name="common/img_topic" value="/stereo/frame_left/image_raw" />
+		<node pkg="image_transport" type="republish" name="fusionportable_frame_left_republish"
+		      args="compressed in:=/stereo/frame_left/image_raw raw out:=/stereo/frame_left/image_raw"
+		      output="screen" respawn="true" />
+	</group>
+	<group if="$(eval arg('platform') == 'vehicle')">
+		<param name="common/img_topic" value="/stereo/vehicle_frame_left/image_raw" />
+		<node pkg="image_transport" type="republish" name="fusionportable_frame_left_republish"
+		      args="compressed in:=/stereo/vehicle_frame_left/image_raw raw out:=/stereo/vehicle_frame_left/image_raw"
+		      output="screen" respawn="true" />
+	</group>
 
-	<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
-		<rosparam file="$(find fast_livo)/config/FusionPortableV2/camera_fusionportablev2_ugv.yaml" />
-	</node>
+	<group if="$(eval arg('platform') == 'ugv')">
+		<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+			<rosparam file="$(find fast_livo)/config/FusionPortableV2/camera_fusionportablev2_ugv.yaml" />
+		</node>
+	</group>
+	<group if="$(eval arg('platform') == 'handheld')">
+		<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+			<rosparam file="$(find fast_livo)/config/FusionPortableV2/camera_fusionportablev2_handheld.yaml" />
+		</node>
+	</group>
+	<group if="$(eval arg('platform') == 'legged')">
+		<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+			<rosparam file="$(find fast_livo)/config/FusionPortableV2/camera_fusionportablev2_legged.yaml" />
+		</node>
+	</group>
+	<group if="$(eval arg('platform') == 'vehicle')">
+		<node pkg="fast_livo" type="fastlivo_mapping" name="laserMapping" output="screen">
+			<rosparam file="$(find fast_livo)/config/FusionPortableV2/camera_fusionportablev2_vehicle.yaml" />
+		</node>
+	</group>
 	
 	<group if="$(arg rviz)">
 		<node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />

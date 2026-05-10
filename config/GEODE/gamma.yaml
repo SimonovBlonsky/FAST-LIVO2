@@ -89,7 +89,7 @@ publish:
 
 evo:
   seq_name: "geode_gamma"
-  pose_output_en: true
+  pose_output_en: false
 
 pcd_save:
   pcd_save_en: false

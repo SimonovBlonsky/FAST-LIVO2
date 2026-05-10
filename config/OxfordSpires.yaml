@@ -1,0 +1,95 @@
+common:
+  img_topic: "/alphasense_driver_ros/cam0/debayered/image"
+  lid_topic: "/hesai/pandar"
+  imu_topic: "/alphasense_driver_ros/imu"
+  img_en: 1
+  enable_img_sync_in_lio: false
+  lidar_en: 1
+  ros_driver_bug_fix: false
+
+extrin_calib:
+  # LiDAR-to-IMU, computed from cam0 T_cam_imu and T_cam_lidar.
+  extrinsic_T: [-0.000651708683372087, -0.015510342560109067, 0.08463265780318903]
+  extrinsic_R: [-0.016638045748655877, -0.9998601056363499, 0.0017159809243349703,
+                 0.9998552572581154, -0.016631813594098117, 0.0035843144224122032,
+                -0.0035552731221625, 0.0017753685358886655, 0.9999921040186209]
+  # LiDAR-to-Camera, directly from cam0 T_cam_lidar.
+  Rcl: [0.009769443369467168, 0.9999460020163569, 0.0035427429705001123,
+        0.007671197638838445, 0.003467861351881818, -0.9999645627043141,
+       -0.9999228523756403, 0.009796274248324188, -0.007636904334543504]
+  Pcl: [0.00035060884033447846, -0.079574053851818, -0.053826061545697405]
+
+time_offset:
+  imu_time_offset: 0.0
+  img_time_offset: 0.0
+  exposure_time_init: 0.0
+
+preprocess:
+  point_filter_num: 1
+  filter_size_surf: 0.1 # 0.2
+  lidar_type: 5 # Hesai
+  scan_line: 64
+  blind: 0.6 # 0.1 0.3
+ 
+vio:
+  max_iterations: 5
+  outlier_threshold: 500
+  img_point_cov: 1000
+  patch_size: 8
+  patch_pyrimid_level: 4
+  normal_en: true
+  raycast_en: false
+  inverse_composition_en: false
+  exposure_estimate_en: true
+  inv_expo_cov: 0.1
+
+imu:
+  imu_en: true
+  imu_int_frame: 30
+  acc_cov: 0.5 # 0.1
+  gyr_cov: 0.01
+  b_acc_cov: 0.0001 # 0.1
+  b_gyr_cov: 0.0001 # 0.1
+
+lio:
+  max_iterations: 5
+  dept_err: 0.02
+  beam_err: 0.05
+  min_eigen_value: 0.0001 # 0.0025
+  voxel_size: 0.4
+  max_layer: 2
+  max_points_num: 100
+  layer_init_num: [5, 5, 5, 5, 5]
+
+local_map:  
+  map_sliding_en: false
+  half_map_size: 100
+  sliding_thresh: 8
+
+uav:
+  imu_rate_odom: false
+  gravity_align_en: false
+
+publish:
+  dense_map_en: true
+  pub_effect_point_en: false 
+  pub_plane_en: false
+  pub_scan_num: 1
+  blind_rgb_points: 0.0
+
+evo:
+  seq_name: "OxfordSpires"
+  pose_output_en: false
+
+pcd_save:
+  pcd_save_en: false
+  type: 0 # 0: World Frame, 1: Body Frame;
+  colmap_output_en: false # need to set interval = -1
+  filter_size_pcd: 0.15
+  interval: -1
+  # how many LiDAR frames saved in each pcd file;
+  # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
+
+image_save:
+  img_save_en: false
+  interval: 1
